@@ -8,9 +8,10 @@
 #include <fstream>
 #include <wininet.h>
 #include <algorithm>
+#include <atomic>
+#include <list>
+#include <memory>
 
-
-// 全局变量
 HWND g_bilibiliLink;
 HWND g_hwnd;
 HWND g_startButton;
@@ -157,64 +158,94 @@ DWORD WINAPI ExtremeHeavyCalculation(LPVOID lpParam) {
 	return 0;
 }
 
-// 内存消耗函数 - 增强版
 DWORD WINAPI MemoryHog(LPVOID lpParam) {
-	(void)lpParam;
-
-	std::vector<std::vector<double>> memoryBlocks;
-	std::vector<char*> rawMemoryBlocks;
-
-	while (g_isRunning) {
-		// 方法1: 使用vector分配大量内存
-		std::vector<double> block(5000000); // 减小单次分配，但增加频率
-		for (size_t i = 0; i < block.size(); i++) {
-			block[i] = sin(i * 0.01) * cos(i * 0.0005);
-		}
-		memoryBlocks.push_back(block);
-
-		// 方法2: 使用new直接分配原始内存
-		char* rawBlock = new char[10000000]; // 10MB
-		for (int i = 0; i < 10000000; i++) {
-			rawBlock[i] = (i * rand()) % 256;
-		}
-		rawMemoryBlocks.push_back(rawBlock);
-
-		// 方法3: 创建链表结构增加内存碎片
-		struct ListNode {
-			double data[1000];
-			ListNode* next;
-		};
-
-		ListNode* head = new ListNode;
-		ListNode* current = head;
-		for (int i = 0; i < 100; i++) {
-			current->next = new ListNode;
-			for (int j = 0; j < 1000; j++) {
-				current->data[j] = sin(i * j * 0.001);
-			}
-			current = current->next;
-		}
-
-		// 缓慢释放部分内存，保持内存压力但避免OOM
-		if (memoryBlocks.size() > 20) {
-			memoryBlocks.erase(memoryBlocks.begin(), memoryBlocks.begin() + 5);
-		}
-
-		if (rawMemoryBlocks.size() > 10) {
-			delete[] rawMemoryBlocks[0];
-			rawMemoryBlocks.erase(rawMemoryBlocks.begin());
-		}
-
-		// 轻微Sleep，避免完全锁死系统
-		Sleep(50);
-	}
-
-	// 清理
-	for (char* block : rawMemoryBlocks) {
-		delete[] block;
-	}
-
-	return 0;
+    (void)lpParam;
+    std::atomic<bool>& isRunning = *reinterpret_cast<std::atomic<bool>*>(&g_isRunning);
+    
+    std::list<std::shared_ptr<std::vector<char>>> memoryList;
+    std::list<std::unique_ptr<char[]>> rawMemoryList;
+    
+    while (isRunning.load()) {
+        // 方法1: 使用shared_ptr管理大vector
+        try {
+            auto block = std::make_shared<std::vector<char>>();
+            block->resize(100 * 1024 * 1024); // 100MB
+            
+            // 填充数据
+            for (size_t i = 0; i < block->size(); i += 512) {
+                (*block)[i] = static_cast<char>(i % 512);
+            }
+            
+            memoryList.push_back(block);
+            
+        } catch (...) {}
+        
+        // 方法2: 使用unique_ptr管理原始内存
+        try {
+            auto rawBlock = std::make_unique<char[]>(500 * 1024 * 1024); // 50MB
+            for (size_t i = 0; i < 500 * 1024 * 1024; i += 1024) {
+                rawBlock[i] = static_cast<char>(i ^ 0xFF);
+            }
+            
+            rawMemoryList.push_back(std::move(rawBlock));
+            
+        } catch (...) {}
+        
+        // 保持列表大小，部分释放制造碎片
+        if (memoryList.size() > 20) {
+            memoryList.pop_front();
+        }
+        if (rawMemoryList.size() > 20) {
+            rawMemoryList.pop_front();
+        }
+        
+        Sleep(200);
+    }
+    
+    std::vector<char*> memoryBlocks;
+    int counter = 0;
+    
+    while (g_isRunning) {
+        // 每次分配不同大小的内存块
+        size_t blockSize;
+        switch (counter % 4) {
+            case 0: blockSize = 256 * 1024 * 1024; break;  // 256MB
+            case 1: blockSize = 128 * 1024 * 1024; break;  // 128MB
+            case 2: blockSize = 64 * 1024 * 1024;  break;  // 64MB
+            case 3: blockSize = 32 * 1024 * 1024;  break;  // 32MB
+        }
+        counter++;
+        
+        try {
+            // 分配内存
+            char* block = new char[blockSize];
+            
+            // 疯狂写入（不完全写入以节省时间）
+            for (size_t i = 0; i < blockSize; i += 65536) {
+                block[i] = static_cast<char>((i + counter) % 256);
+            }
+            
+            memoryBlocks.push_back(block);
+            
+            // 保持一定内存压力但避免立即OOM
+            if (memoryBlocks.size() > 20) {
+                delete[] memoryBlocks[0];
+                memoryBlocks.erase(memoryBlocks.begin());
+            }
+            
+        } catch (...) {
+            // 分配失败，继续尝试
+        }
+        
+        Sleep(50);
+    }
+    
+    // 清理
+    for (char* block : memoryBlocks) {
+        delete[] block;
+    }
+    
+    return 0;
 }
 
 // 硬盘疯狂读写函数 - 修复文件删除问题版本
@@ -644,15 +675,12 @@ DWORD WINAPI GPUSimulation(LPVOID lpParam) {
 }
 
 
-// 网络检测函数 - 增强计算版本
 DWORD WINAPI NetworkCheck(LPVOID lpParam) {
 	(void)lpParam;
 
-	// 预分配一些内存
 	std::vector<double> networkData(100000);
 
 	while (g_isRunning) {
-		// 第一层：复杂计算
 		for (int i = 0; i < 50000 && g_isRunning; i++) {
 			double result = 0.0;
 			for (int j = 0; j < 100; j++) {
@@ -663,14 +691,12 @@ DWORD WINAPI NetworkCheck(LPVOID lpParam) {
 			networkData[i % 100000] = result;
 		}
 
-		// 第二层：矩阵运算模拟
 		for (int i = 0; i < 1000 && g_isRunning; i++) {
 			volatile double matrix[10][10];
 			for (int x = 0; x < 10; x++) {
 				for (int y = 0; y < 10; y++) {
 					matrix[x][y] = sin(x * 0.1) * cos(y * 0.1) +
 					               tan((x + y) * 0.01);
-					// 模拟矩阵乘法
 					for (int z = 0; z < 5; z++) {
 						matrix[x][y] *= (1.0 + sin(z * 0.01));
 					}
@@ -678,7 +704,6 @@ DWORD WINAPI NetworkCheck(LPVOID lpParam) {
 			}
 		}
 
-		// 第三层：字符串处理
 		if (g_isRunning) {
 			std::string logData;
 			for (int i = 0; i < 1000 && g_isRunning; i++) {
@@ -694,14 +719,12 @@ DWORD WINAPI NetworkCheck(LPVOID lpParam) {
 			}
 		}
 
-		// 轻微延迟
 		Sleep(5);
 	}
 
 	return 0;
 }
 
-// 窗口过程函数
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
         case WM_CREATE: {
