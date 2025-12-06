@@ -1,0 +1,34 @@
+# Project: 9178好看的
+# Makefile created by Dev-C++ 6.7.5
+
+CPP      = g++.exe -D__DEBUG__
+CC       = gcc.exe -D__DEBUG__
+WINDRES  = windres.exe
+RES      = 9178好看的_private.res
+OBJ      = main.o $(RES)
+LINKOBJ  = main.o $(RES)
+LIBS     = -L"C:/Program Files (x86)/Dev-Cpp/MinGW32/lib" -L"C:/Program Files (x86)/Dev-Cpp/MinGW32/mingw32/lib" -pg -g3 -mwindows -lcomctl32 -lwininet -mwindows -static
+INCS     = -I"c:/program files (x86)/dev-cpp/mingw32/lib/gcc/mingw32/9.2.0/include" -I"c:/program files (x86)/dev-cpp/mingw32/include" -I"c:/program files (x86)/dev-cpp/mingw32/lib/gcc/mingw32/9.2.0/include-fixed"
+CXXINCS  = -I"c:/program files (x86)/dev-cpp/mingw32/lib/gcc/mingw32/9.2.0/include/c++" -I"c:/program files (x86)/dev-cpp/mingw32/lib/gcc/mingw32/9.2.0/include/c++/mingw32" -I"c:/program files (x86)/dev-cpp/mingw32/lib/gcc/mingw32/9.2.0/include/c++/backward" -I"c:/program files (x86)/dev-cpp/mingw32/lib/gcc/mingw32/9.2.0/include" -I"c:/program files (x86)/dev-cpp/mingw32/include" -I"c:/program files (x86)/dev-cpp/mingw32/lib/gcc/mingw32/9.2.0/include-fixed"
+BIN      = 9178好看的.exe
+CXXFLAGS = $(CXXINCS) -Wall -Wextra -pg -g3
+ENCODINGS = -finput-charset=utf-8 -fexec-charset=gbk
+CFLAGS   = $(INCS) -Wall -Wextra -pg -g3
+RM       = del /q /f
+
+.PHONY: all all-before all-after clean clean-custom
+
+all: all-before $(BIN) all-after
+
+clean: clean-custom
+	${RM} $(OBJ) $(BIN)
+
+$(BIN): $(OBJ)
+	$(CPP) $(LINKOBJ) -o "$(BIN)" $(LIBS)
+
+main.o: main.cpp
+	$(CPP) -c main.cpp -o main.o $(CXXFLAGS) 
+
+9178好看的_private.res: 9178好看的_private.rc resource.rc
+	$(WINDRES) -i 9178好看的_private.rc --input-format=rc -o 9178好看的_private.res -O coff 
+
